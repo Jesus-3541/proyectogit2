@@ -1,0 +1,39 @@
+name: CD Workflow
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  update-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+      - name: Incrementar version
+        run: |
+          FECHA=$(date +'%Y-%m-%d %H:%M:%S')
+          sed -i "s/AppVersion-[0-9]*/AppVersion-1 - $FECHA/g" README.md
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add README.md
+          git commit -m "Incrementa version en README" || echo "Sin cambios"
+          git push
+
+  validate-prod:
+    needs: update-version
+    runs-on: self-hosted
+    steps:
+      - name: Comparar PROD_TOKEN
+        shell: powershell
+        run: |
+          if ("${{ secrets.PROD_TOKEN }}" -eq "$env:LOCAL_PROD_TOKEN") {
+            Write-Host "Coinciden"
+          } else {
+            Write-Host "No coinciden"
+            exit 1
+          }
